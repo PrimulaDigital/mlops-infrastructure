@@ -11,17 +11,33 @@ import mlscripts
 
 # Upload dataset to s3 bucket
 s3 = boto3.client('s3')
-bucket_name = 'sagemaker-us-east-1-339712905337'
-file_name = 'diabetes.csv'
+bucket_name = 'test-diabetesdataset'
+file_name = r'data/diabetes.csv'
 s3.upload_file(file_name, bucket_name, file_name)
 
-# Get SageMaker role
-role = get_execution_role()
+# Assuming the SageMaker role
+sts_client = boto3.client('sts')
+
+assumed_role_object = sts_client.assume_role(
+    RoleArn="arn:aws:iam::339712905337:role/service-role/AmazonSageMaker-ExecutionRole-20240910T154043",
+    RoleSessionName="SageMakerSession"
+)
+
+credentials = assumed_role_object['Credentials']
+
+# Create a SageMaker client using the assumed role credentials
+sagemaker_client = boto3.client(
+    'sagemaker',
+    aws_access_key_id=credentials['AccessKeyId'],
+    aws_secret_access_key=credentials['SecretAccessKey'],
+    aws_session_token=credentials['SessionToken'],
+    region_name='your-region'
+)
 
 # Define the SKLearn Estimator
 sklearn_estimator = SKLearn(
-    entry_point=mlscripts.train,
-    role=role,
+    entry_point='mlscripts/train.py',
+    role="arn:aws:iam::339712905337:role/service-role/AmazonSageMaker-ExecutionRole-20240910T154043",
     instance_type='ml.m5.xlarge',
     framework_version='0.23-1',
     sagemaker_session=sagemaker.Session(),
@@ -29,47 +45,4 @@ sklearn_estimator = SKLearn(
 )
 
 # Start the training job
-sklearn_estimator.fit({'train': f's3://{bucket_name}/{file_name}'})
-
-
-# TODO: Schritt-für-Schritt-Anleitung:
-"""
-Rolle übernehmen:
-Ersetze arn:aws:iam::123456789012:role/MyRoleName durch die ARN der Rolle, die du übernehmen möchtest, und MySessionName durch einen Namen für deine Sitzung.
-bash
-
-aws sts assume-role \
-    --role-arn arn:aws:iam::123456789012:role/MyRoleName \
-    --role-session-name MySessionName
-
-Dieser Befehl gibt ein JSON-Dokument mit temporären Anmeldeinformationen zurück, das die AccessKeyId, SecretAccessKey und SessionToken enthält.
-Temporäre Anmeldeinformationen verwenden:
-Exportiere die temporären Anmeldeinformationen in deine Umgebungsvariablen. Ersetze YOUR_ACCESS_KEY_ID, YOUR_SECRET_ACCESS_KEY, und YOUR_SESSION_TOKEN durch die Werte, die du im vorherigen Schritt erhalten hast.
-bash
-
-export AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY_ID
-export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
-export AWS_SESSION_TOKEN=YOUR_SESSION_TOKEN
-
-Verwenden der Rolle:
-Nun kannst du die AWS CLI verwenden, und die Befehle werden mit den Berechtigungen der übernommenen Rolle ausgeführt.
-bash
-
-aws sagemaker list-training-jobs
-"""
-
-"""
-# Verwenden der Rolle über eine temporäre Sitzung
-session = boto3.Session(
-    aws_access_key_id='YOUR_ACCESS_KEY_ID',
-    aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
-    aws_session_token='YOUR_SESSION_TOKEN'
-)
-
-# Erstellen eines SageMaker-Clients
-sagemaker_client = session.client('sagemaker')
-
-# Beispiel: Liste der Training Jobs abrufen
-response = sagemaker_client.list_training_jobs()
-print(response)
-"""
+sklearn_estimator.fit({'train': f's3://test-diabetesdataset/data/diabetes.csv'})
