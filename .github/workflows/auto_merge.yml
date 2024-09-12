@@ -28,6 +28,15 @@ jobs:
             -d '{"merge_method": "merge"}' \
             "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/merge"
 
+          # Check if the branch is not 'dev' and delete it
+          if [ "$HEAD_BRANCH" != "dev" ]; then
+            curl -s -X DELETE \
+              -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/heads/$HEAD_BRANCH"
+          else
+            echo "Branch '$HEAD_BRANCH' is 'dev'. Skipping deletion."
+          fi
+
       - name: Close pull request (if merged)
         if: ${{ success() }}
         run: echo "Pull request successfully merged"
