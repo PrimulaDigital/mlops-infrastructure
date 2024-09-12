@@ -34,3 +34,21 @@ jobs:
           echo "Actor: ${{ github.actor }}"
           echo "Ref: ${{ github.ref }}"
           echo "SHA: ${{ github.sha }}"
+
+      # Step 4: Print information about the GitHub token being used
+      - name: Print Token Information
+        run: |
+          echo "GitHub Actions Token Information:"
+          echo "Token used: ${{ secrets.GH_TOKEN }}"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }} # Set the token as an environment variable
+
+      # Step 5: Test using the token
+      - name: Use Token to Test API Call
+        run: |
+          echo "Testing GitHub API call with GH_TOKEN"
+          curl -H "Authorization: token $GH_TOKEN" \
+               -H "Accept: application/vnd.github.v3+json" \
+               https://api.github.com/user
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
