@@ -1,0 +1,29 @@
+name: Test GitHub Action
+
+# This triggers the workflow on push or pull request events to any branch
+on:
+  push:
+    branches:
+      - '*'  # Triggers on push to any branch
+  pull_request:
+    branches:
+      - '*'  # Triggers on pull request for any branch
+
+jobs:
+  hello-world-job:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout the code
+        uses: actions/checkout@v2
+
+      # Step 2: Simple "Hello, World!" output
+      - name: Print Hello World
+        run: echo "Hello, World! This is a GitHub Actions test."
+             
+      # Step 3: Print GitHub event info (optional, for testing)
+      - name: Show event info
+        run: |
+          echo "GitHub event is:"
+          echo "${{ toJson(github.event) }}"

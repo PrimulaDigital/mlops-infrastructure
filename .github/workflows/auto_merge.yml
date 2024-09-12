@@ -1,4 +1,6 @@
 name: Auto Merge on PR Approval
+env: 
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
 on:
   pull_request_review:
