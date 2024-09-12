@@ -1,4 +1,6 @@
 name: Test GitHub Action
+env: 
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
 # This triggers the workflow on push or pull request events to any branch
 on:
@@ -22,8 +24,14 @@ jobs:
       - name: Print Hello World
         run: echo "Hello, World! This is a GitHub Actions test."
              
-      # Step 3: Print GitHub event info (optional, for testing)
-      - name: Show event info
+      # Step 2: Print GitHub token permissions
+      - name: Print GitHub Token Permissions
         run: |
-          echo "GitHub event is:"
-          echo "${{ toJson(github.event) }}"
+          # Show permissions that are currently set in the workflow
+          echo "Workflow permissions:"
+          echo "contents: ${permissions.contents}"
+          echo "pull-requests: ${permissions.pull-requests}"
+          echo "issues: ${permissions.issues}"
+          echo "statuses: ${permissions.statuses}"
+          echo "deployments: ${permissions.deployments}"
+          echo "repository: ${permissions.repository}"
