@@ -1,0 +1,31 @@
+name: Auto Merge on PR Approval
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+
+    if: ${{ github.event.review.state == 'approved' }}  # Only run if the review is 'approved'
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+
+      - name: Auto-merge the pull request
+        run: |
+          # Fetch the pull request details
+          PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+
+          # Merge the pull request
+          curl -s -X PUT \
+            -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"merge_method": "merge"}' \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/merge"
+
+      - name: Close pull request (if merged)
+        if: ${{ success() }}
+        run: echo "Pull request successfully merged"
