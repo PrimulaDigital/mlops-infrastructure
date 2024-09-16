@@ -9,6 +9,8 @@ load_dotenv()
 
 # Set environment variables
 databucket = os.getenv('env_databucket')
+dataname = os.getenv('env_dataname')
+modelname = os.getenv('env_modelname')
 sagemakerARN = os.getenv('env_sagemakerARN')
 
 # Import boto3 and sagemaker for sagemaker jobs
@@ -20,14 +22,36 @@ from sagemaker.sklearn import SKLearn
 import logging
 boto3.set_stream_logger('boto3.resources', logging.DEBUG)
 
-# Upload dataset to s3 bucket
+import joblib
+
+# Create s3 and sts client
 s3 = boto3.client('s3')
-bucket_name = 'test-diabetesdataset'
-file_name = 'data/diabetes.csv'
-s3.upload_file(file_name, bucket_name, file_name)
+sts_client = boto3.client('sts')
+
+def model_exists_in_s3(bucket_name, model_file_name):
+    try:
+        s3.head_object(Bucket=bucket_name, Key=model_file_name)
+        print(f"Model {model_file_name} exists in S3 bucket {bucket_name}")
+        return True
+    except Exception as e:
+        print(f"Model {model_file_name} does not exist: {e}")
+        return False
+    
+def data_exists_in_s3(bucket_name, data_file_name):
+    try:
+        s3.head_object(Bucket=bucket_name, Key=data_file_name)
+        print(f"Data {data_file_name} exists in S3 bucket {bucket_name}")
+        return True
+    except Exception as e:
+        print(f"Data {data_file_name} does not exist: {e}")
+        return False
+
+# Check if data already exists in bucket
+if(not data_exists_in_s3(databucket, dataname)):
+    # Upload dataset to s3 bucket
+    s3.upload_file(dataname, databucket, dataname)
 
 # Assuming the SageMaker role
-sts_client = boto3.client('sts')
 assumed_role_object = sts_client.assume_role(
     RoleArn = sagemakerARN,
     RoleSessionName = "SageMakerSession"
@@ -56,4 +80,4 @@ sklearn_estimator = SKLearn(
 )
 
 # Start the training job
-sklearn_estimator.fit({'train.py': databucket})
+sklearn_estimator.fit({'train': f's3://{databucket}'})
