@@ -10,20 +10,18 @@ import util.model_utils as model_utils
 # Load environment variables
 load_dotenv()
 databucket = os.getenv('env_databucket')
-dataname = os.getenv('env_dataname')
-outputdir = os.getenv('env_outputdir')
 sagemakerARN = os.getenv('env_sagemakerARN')
-
 local_model = '/tmp/model/'
 local_data = '/tmp/data/'
+os.makedirs(local_model, exist_ok=True)
 os.makedirs(local_data, exist_ok=True)
 joblib_model_path = os.path.join(local_model, 'model.joblib')
 data_path = os.path.join(local_data, 'data.csv')
 
 def main():
     # Check if data exists, upload if necessary
-    if not s3_utils.file_exists_in_s3(databucket, dataname):
-        s3_utils.upload_file_to_s3(data_path, databucket, dataname)
+    if not s3_utils.file_exists_in_s3(databucket, 'data/data.csv'):
+        s3_utils.upload_file_to_s3(data_path, databucket, 'data/data.csv')
 
     data = pd.read_csv(os.path.join(local_data, 'data.csv'))
     print("Data loaded successfully.")
@@ -32,9 +30,9 @@ def main():
     credentials = sagemaker_utils.assume_role(sagemakerARN)
 
     # Check if model exists, start training if not
-    if not s3_utils.file_exists_in_s3(databucket, f'{outputdir}model.joblib'):
+    if not s3_utils.file_exists_in_s3(databucket, 'data/model.joblib'):
         estimator = sagemaker_utils.create_sklearn_estimator(sagemakerARN)
-        model_artifacts = sagemaker_utils.start_training_job(estimator, f's3://{databucket}/{dataname}')
+        model_artifacts = sagemaker_utils.start_training_job(estimator, f's3://{databucket}/data/data.csv')
         print(f"Model artifacts saved at: {model_artifacts}")
 
         # Parse S3 path and download the model
@@ -44,10 +42,10 @@ def main():
 
         # Extract and save the model to S3
         model_utils.extract_model(local_tar_path, local_model)
-        s3_utils.upload_file_to_s3(joblib_model_path, databucket, f'{outputdir}model.joblib')
-        print(f"Model unpacked and saved to s3://{databucket}/{outputdir}")
+        s3_utils.upload_file_to_s3(joblib_model_path, databucket, 'data/model.joblib')
+        print(f"Model unpacked and saved to s3://{databucket}/data/model.joblib")
     else:
-        s3_utils.download_file_from_s3(databucket, f'{outputdir}model.joblib', joblib_model_path)
+        s3_utils.download_file_from_s3(databucket, 'data/model.joblib', joblib_model_path)
         model = model_utils.load_model(joblib_model_path)
         print("Model loaded successfully.")
 
