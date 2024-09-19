@@ -22,9 +22,9 @@ def main():
     # Check if data exists, upload if necessary
     if not s3_utils.data_exists_in_s3(databucket, dataname):
         s3_utils.upload_file_to_s3(dataname, databucket, dataname)
-    s3_utils.download_file_from_s3(databucket, dataname, os.path.join(local_data, 'diabetes.csv'))
+    s3_utils.download_file_from_s3(databucket, dataname, os.path.join(local_data, 'data.csv'))
     
-    data = pd.read_csv(os.path.join(local_data, 'diabetes.csv'))
+    data = pd.read_csv(os.path.join(local_data, 'data.csv'))
     print("Data loaded successfully.")
 
     # Assuming the SageMaker role

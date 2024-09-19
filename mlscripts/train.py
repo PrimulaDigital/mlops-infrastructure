@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # Load the dataset
     data_dir = os.environ['SM_CHANNEL_TRAIN']
-    df = pd.read_csv(os.path.join(data_dir, 'diabetes.csv'))
+    df = pd.read_csv(os.path.join(data_dir, 'data.csv'))
 
     X = df.drop(columns=['target'])
     y = df['target']
