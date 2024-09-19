@@ -16,6 +16,7 @@ sagemakerARN = os.getenv('env_sagemakerARN')
 
 local_model = '/tmp/model/'
 local_data = '/tmp/data/'
+os.makedirs(local_data, exist_ok=True)
 joblib_model_path = os.path.join(local_model, 'model.joblib')
 
 def main():
