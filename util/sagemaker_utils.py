@@ -10,7 +10,7 @@ def assume_role(sagemakerARN):
     )
     return assumed_role_object['Credentials']
 
-def create_sklearn_estimator(role_arn, instance_type='ml.t3.micro', hyperparameters={'alpha': 0.001}):
+def create_sklearn_estimator(role_arn, instance_type='ml.m5.large', hyperparameters={'alpha': 0.001}):
     sklearn_estimator = SKLearn(
         entry_point='mlscripts/train.py',
         role=role_arn,

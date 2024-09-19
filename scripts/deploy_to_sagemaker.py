@@ -22,10 +22,9 @@ data_path = os.path.join(local_data, 'data.csv')
 
 def main():
     # Check if data exists, upload if necessary
-    if not s3_utils.data_exists_in_s3(databucket, dataname):
+    if not s3_utils.file_exists_in_s3(databucket, dataname):
         s3_utils.upload_file_to_s3(data_path, databucket, dataname)
-    s3_utils.download_file_from_s3(databucket, dataname, os.path.join(local_data, 'data.csv'))
-    
+
     data = pd.read_csv(os.path.join(local_data, 'data.csv'))
     print("Data loaded successfully.")
 
@@ -33,7 +32,7 @@ def main():
     credentials = sagemaker_utils.assume_role(sagemakerARN)
 
     # Check if model exists, start training if not
-    if not s3_utils.model_exists_in_s3(databucket, f'{outputdir}model.joblib'):
+    if not s3_utils.file_exists_in_s3(databucket, f'{outputdir}model.joblib'):
         estimator = sagemaker_utils.create_sklearn_estimator(sagemakerARN)
         model_artifacts = sagemaker_utils.start_training_job(estimator, f's3://{databucket}/{dataname}')
         print(f"Model artifacts saved at: {model_artifacts}")
@@ -45,7 +44,7 @@ def main():
 
         # Extract and save the model to S3
         model_utils.extract_model(local_tar_path, local_model)
-        s3_utils.upload_model_to_s3(joblib_model_path, databucket, f'{outputdir}model.joblib')
+        s3_utils.upload_file_to_s3(joblib_model_path, databucket, f'{outputdir}model.joblib')
         print(f"Model unpacked and saved to s3://{databucket}/{outputdir}")
     else:
         s3_utils.download_file_from_s3(databucket, f'{outputdir}model.joblib', joblib_model_path)
