@@ -1,5 +1,4 @@
 import boto3
-import os
 
 s3 = boto3.client('s3')
 
@@ -25,6 +24,13 @@ def upload_file_to_s3(local_path, bucket_name, s3_path):
     try:
         s3.upload_file(local_path, bucket_name, s3_path)
         print(f"File {local_path} uploaded to s3://{bucket_name}/{s3_path}")
+    except Exception as e:
+        print(f"Failed to upload {local_path} to S3: {e}")
+
+def upload_model_to_s3(local_path, bucket_name, s3_path):
+    try:
+        s3.upload_file(local_path, bucket_name, s3_path)
+        print(f"Model {local_path} uploaded to s3://{bucket_name}/{s3_path}")
     except Exception as e:
         print(f"Failed to upload {local_path} to S3: {e}")
 

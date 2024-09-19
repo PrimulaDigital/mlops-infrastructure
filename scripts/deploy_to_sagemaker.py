@@ -43,7 +43,7 @@ def main():
 
         # Extract and save the model to S3
         model_utils.extract_model(local_tar_path, local_model)
-        model_utils.save_model_to_s3(joblib_model_path, databucket, f'{outputdir}model.joblib')
+        s3_utils.upload_model_to_s3(joblib_model_path, databucket, f'{outputdir}model.joblib')
         print(f"Model unpacked and saved to s3://{databucket}/{outputdir}")
     else:
         s3_utils.download_file_from_s3(databucket, f'{outputdir}model.joblib', joblib_model_path)
