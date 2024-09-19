@@ -18,11 +18,12 @@ local_model = '/tmp/model/'
 local_data = '/tmp/data/'
 os.makedirs(local_data, exist_ok=True)
 joblib_model_path = os.path.join(local_model, 'model.joblib')
+data_path = os.path.join(local_data, 'data.csv')
 
 def main():
     # Check if data exists, upload if necessary
     if not s3_utils.data_exists_in_s3(databucket, dataname):
-        s3_utils.upload_file_to_s3(dataname, databucket, dataname)
+        s3_utils.upload_file_to_s3(data_path, databucket, dataname)
     s3_utils.download_file_from_s3(databucket, dataname, os.path.join(local_data, 'data.csv'))
     
     data = pd.read_csv(os.path.join(local_data, 'data.csv'))
