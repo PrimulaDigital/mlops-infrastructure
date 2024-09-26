@@ -16,11 +16,6 @@ locals {
 
 ##################################################
 
-resource "aws_iam_role" "sf_exec_role" {
-  name               = "${var.project_name}-sfn-exec"
-  assume_role_policy = data.aws_iam_policy_document.sf_assume_role.json
-}
-
 // policy to invoke sagemaker training job, creating endpoints etc.
 resource "aws_iam_policy" "sagemaker_policy" {
   name   = "${var.project_name}-sagemaker"
