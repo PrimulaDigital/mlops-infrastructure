@@ -9,82 +9,9 @@ data "aws_region" "current" {}
 locals {
   s3_bucket_input_training_path = "${var.project_name}-training-data-${data.aws_caller_identity.current.account_id}"
   s3_bucket_output_models_path = "${var.project_name}-output-models-${data.aws_caller_identity.current.account_id}"
-  s3_object_training_data = "../../data/iris.csv"
+  s3_object_training_data = "../data/iris.csv"
   input_training_path = "s3://${var.project_name}-training-data-${data.aws_caller_identity.current.account_id}"
   output_models_path = "s3://${var.project_name}-output-models-${data.aws_caller_identity.current.account_id}"
-}
-
-##################################################
-
-// policy to invoke sagemaker training job, creating endpoints etc.
-resource "aws_iam_policy" "sagemaker_policy" {
-  name   = "${var.project_name}-sagemaker"
-  policy = <<-EOF
-      {
-          "Version": "2012-10-17",
-          "Statement": [
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "sagemaker:CreateTrainingJob",
-                      "sagemaker:DescribeTrainingJob",
-                      "sagemaker:StopTrainingJob",
-                      "sagemaker:createModel",
-                      "sagemaker:createEndpointConfig",
-                      "sagemaker:createEndpoint",
-                      "sagemaker:addTags"
-                  ],
-                  "Resource": [
-                   "*"
-                  ]
-              },
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "sagemaker:ListTags"
-                  ],
-                  "Resource": [
-                   "*"
-                  ]
-              },
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "iam:PassRole"
-                  ],
-                  "Resource": [
-                   "*"
-                  ],
-                  "Condition": {
-                      "StringEquals": {
-                          "iam:PassedToService": "sagemaker.amazonaws.com"
-                      }
-                  }
-              },
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "events:PutTargets",
-                      "events:PutRule",
-                      "events:DescribeRule"
-                  ],
-                  "Resource": [
-                  "*"
-                  ]
-              }
-          ]
-      }
-EOF
-}
-
-resource "aws_iam_role_policy_attachment" "sm_invoke" {
-  role       = aws_iam_role.sf_exec_role.name
-  policy_arn = aws_iam_policy.sagemaker_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "cloud_watch_full_access" {
-  role       = aws_iam_role.sf_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchFullAccess"
 }
 
 #################################################
