@@ -10,6 +10,7 @@ locals {
   s3_bucket_input_training_path = "${var.project_name}-training-data-${data.aws_caller_identity.current.account_id}"
   s3_bucket_output_models_path = "${var.project_name}-output-models-${data.aws_caller_identity.current.account_id}"
   s3_object_training_data = "../data/iris.csv"
+  s3_object_train_script = "../ml-scripts/train.py"
   input_training_path = "s3://${var.project_name}-training-data-${data.aws_caller_identity.current.account_id}"
   output_models_path = "s3://${var.project_name}-output-models-${data.aws_caller_identity.current.account_id}"
 }
@@ -69,68 +70,221 @@ resource "aws_iam_role_policy_attachment" "sagemaker_full_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
 }
 
+// Policy to access docker images from ecr
+resource "aws_iam_policy" "ecr_access_policy" {
+  name = "${var.project_name}-ecr_access_policy"
+  policy = <<-EOF
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "ecr:BatchCheckLayerAvailability",
+                      "ecr:BatchGetImage",
+                      "ecr:GetDownloadUrlForLayer",
+                      "ecr:DescribeRepositories"
+                  ],
+                  "Resource": "*"
+              }
+          ]
+      }
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "ecr_access_policy" {
+  role = aws_iam_role.sagemaker_exec_role.name
+  policy_arn = aws_iam_policy.ecr_access_policy.arn
+}
 #################################################
-# ECR Repository
+# Step function role
 #################################################
 
-resource "aws_ecr_repository" "ecr_repository" {
-  name                 = var.project_name
-  image_tag_mutability = "MUTABLE"
+// IAM role for Step Functions state machine
+data "aws_iam_policy_document" "sf_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
 
-  image_scanning_configuration {
-    scan_on_push = false
+    principals {
+      type        = "Service"
+      identifiers = ["states.${data.aws_region.current.name}.amazonaws.com"]
+    }
   }
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "sf_exec_role" {
+  name               = "${var.project_name}-sfn-exec"
+  assume_role_policy = data.aws_iam_policy_document.sf_assume_role.json
+}
+
+// policy to invoke sagemaker training job, creating endpoints etc.
+resource "aws_iam_policy" "sagemaker_policy" {
+  name   = "${var.project_name}-sagemaker"
+  policy = <<-EOF
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "sagemaker:CreateTrainingJob",
+                      "sagemaker:DescribeTrainingJob",
+                      "sagemaker:StopTrainingJob",
+                      "sagemaker:createModel",
+                      "sagemaker:createEndpointConfig",
+                      "sagemaker:createEndpoint",
+                      "sagemaker:addTags"
+                  ],
+                  "Resource": [
+                   "*"
+                  ]
+              },
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "sagemaker:ListTags"
+                  ],
+                  "Resource": [
+                   "*"
+                  ]
+              },
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "iam:PassRole"
+                  ],
+                  "Resource": [
+                   "*"
+                  ],
+                  "Condition": {
+                      "StringEquals": {
+                          "iam:PassedToService": "sagemaker.amazonaws.com"
+                      }
+                  }
+              },
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "events:PutTargets",
+                      "events:PutRule",
+                      "events:DescribeRule"
+                  ],
+                  "Resource": [
+                  "*"
+                  ]
+              },
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "ecr:BatchCheckLayerAvailability",
+                      "ecr:BatchGetImage",
+                      "ecr:GetDownloadUrlForLayer",
+                      "ecr:DescribeRepositories"
+                  ],
+                  "Resource": [
+                      "*"
+                  ]
+              }
+          ]
+      }
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "sm_invoke" {
+  role       = aws_iam_role.sf_exec_role.name
+  policy_arn = aws_iam_policy.sagemaker_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "cloud_watch_full_access" {
+  role       = aws_iam_role.sf_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchFullAccess"
 }
 
 #################################################
 # S3 Buckets
 #################################################
+
 resource "aws_s3_bucket" "bucket_training_data" {
   bucket = local.s3_bucket_input_training_path
 }
 
-resource "aws_s3_bucket_acl" "bucket_training_data_acl" {
-  bucket = aws_s3_bucket.bucket_training_data.id
-  acl    = "private"
-  depends_on = [aws_s3_bucket_ownership_controls.s3_training_bucket_acl_ownership]
-}
-
-# Resource to avoid error "AccessControlListNotSupported: The bucket does not allow ACLs"
-resource "aws_s3_bucket_ownership_controls" "s3_training_bucket_acl_ownership" {
-  bucket = aws_s3_bucket.bucket_training_data.id
-  rule {
-    object_ownership = "ObjectWriter"
-  }
-}
-resource "aws_s3_object" "object" {
+// Upload training data to bucket
+resource "aws_s3_object" "data_object" {
   bucket = aws_s3_bucket.bucket_training_data.id
   key    = "iris.csv"
   source = local.s3_object_training_data
+}
+
+// Upload train.py to bucket
+resource "aws_s3_object" "train_object" {
+  bucket = aws_s3_bucket.bucket_training_data.id
+  key    = "train.py"
+  source = local.s3_object_train_script
 }
 
 resource "aws_s3_bucket" "bucket_output_models" {
   bucket = local.s3_bucket_output_models_path
 }
 
-resource "aws_s3_bucket_acl" "bucket_output_models_acl" {
-  bucket = aws_s3_bucket.bucket_output_models.id
-  acl    = "private"
-  depends_on = [aws_s3_bucket_ownership_controls.s3_bucket_acl_ownership]
-}
-
-# Resource to avoid error "AccessControlListNotSupported: The bucket does not allow ACLs"
-resource "aws_s3_bucket_ownership_controls" "s3_bucket_acl_ownership" {
-  bucket = aws_s3_bucket.bucket_output_models.id
-  rule {
-    object_ownership = "ObjectWriter"
-  }
-}
-
 #################################################
-# Outputs
+# Sagemaker Training job
 #################################################
 
-output "ecr_repository_url" {
-  value = aws_ecr_repository.ecr_repository.repository_url
-  description = "ECR URL for the Docker Image"
+resource "aws_sfn_state_machine" "sagemaker_training_job" {
+  name     = "step-machine-training"
+  role_arn = aws_iam_role.sf_exec_role.arn
+
+  definition = jsonencode({
+    Comment = "A Step Function that creates a SageMaker training job",
+    StartAt = "StartTrainingJob",
+    States = {
+      StartTrainingJob = {
+        Type = "Task",
+        Resource = "arn:aws:states:::sagemaker:createTrainingJob.sync",
+        Parameters = {
+          TrainingJobName = "iris-training",
+          AlgorithmSpecification = {
+            TrainingImage = "public.ecr.aws/sam/build-python3.8",
+            TrainingInputMode = "File"
+          },
+          RoleArn = aws_iam_role.sagemaker_exec_role.arn,
+          InputDataConfig = [
+            {
+              ChannelName = "train",
+              DataSource = {
+                S3DataSource = {
+                  S3DataType = "S3Prefix",
+                  S3Uri = local.input_training_path,
+                  S3DataDistributionType = "FullyReplicated"
+                }
+              }
+            }
+          ],
+          OutputDataConfig = {
+            S3OutputPath = local.output_models_path
+          },
+          ResourceConfig = {
+            InstanceType     = var.training_instance_type,
+            InstanceCount    = 1,
+            VolumeSizeInGB   = var.volume_size_sagemaker
+          },
+          StoppingCondition = {
+            MaxRuntimeInSeconds = 3600
+          },
+          HyperParameters = {
+            "test" = "test"
+          }
+        },
+        End = true
+      }
+    }
+  })
 }
