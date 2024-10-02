@@ -70,32 +70,6 @@ resource "aws_iam_role_policy_attachment" "sagemaker_full_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
 }
 
-// Policy to access docker images from ecr
-resource "aws_iam_policy" "ecr_access_policy" {
-  name = "${var.project_name}-ecr_access_policy"
-  policy = <<-EOF
-      {
-          "Version": "2012-10-17",
-          "Statement": [
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "ecr:BatchCheckLayerAvailability",
-                      "ecr:BatchGetImage",
-                      "ecr:GetDownloadUrlForLayer",
-                      "ecr:DescribeRepositories"
-                  ],
-                  "Resource": "*"
-              }
-          ]
-      }
-EOF
-}
-
-resource "aws_iam_role_policy_attachment" "ecr_access_policy" {
-  role = aws_iam_role.sagemaker_exec_role.name
-  policy_arn = aws_iam_policy.ecr_access_policy.arn
-}
 #################################################
 # Step function role
 #################################################
@@ -180,18 +154,6 @@ resource "aws_iam_policy" "sagemaker_policy" {
                   "Resource": [
                   "*"
                   ]
-              },
-              {
-                  "Effect": "Allow",
-                  "Action": [
-                      "ecr:BatchCheckLayerAvailability",
-                      "ecr:BatchGetImage",
-                      "ecr:GetDownloadUrlForLayer",
-                      "ecr:DescribeRepositories"
-                  ],
-                  "Resource": [
-                      "*"
-                  ]
               }
           ]
       }
@@ -209,29 +171,39 @@ resource "aws_iam_role_policy_attachment" "cloud_watch_full_access" {
 }
 
 #################################################
-# S3 Buckets
+# S3 Buckets & ECR
 #################################################
 
 resource "aws_s3_bucket" "bucket_training_data" {
   bucket = local.s3_bucket_input_training_path
 }
 
-// Upload training data to bucket
-resource "aws_s3_object" "data_object" {
-  bucket = aws_s3_bucket.bucket_training_data.id
-  key    = "iris.csv"
-  source = local.s3_object_training_data
-}
+ // Upload training data to bucket
+ resource "aws_s3_object" "data_object" {
+   bucket = aws_s3_bucket.bucket_training_data.id
+   key    = "iris.csv"
+   source = local.s3_object_training_data
+ }
 
-// Upload train.py to bucket
-resource "aws_s3_object" "train_object" {
-  bucket = aws_s3_bucket.bucket_training_data.id
-  key    = "train.py"
-  source = local.s3_object_train_script
-}
+# // Upload train.py to bucket
+# resource "aws_s3_object" "train_object" {
+#   bucket = aws_s3_bucket.bucket_training_data.id
+#   key    = "train.py"
+#   source = local.s3_object_train_script
+# }
 
 resource "aws_s3_bucket" "bucket_output_models" {
   bucket = local.s3_bucket_output_models_path
+}
+
+# Create an ECR repository
+resource "aws_ecr_repository" "ecr_repo" {
+  name                 = "${var.project_name}-repo"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
 }
 
 #################################################
@@ -250,12 +222,12 @@ resource "aws_sfn_state_machine" "sagemaker_training_job" {
         Type = "Task",
         Resource = "arn:aws:states:::sagemaker:createTrainingJob.sync",
         Parameters = {
-          TrainingJobName = "iris-training",
+          TrainingJobName = "iris-training4",
           AlgorithmSpecification = {
-            TrainingImage = "public.ecr.aws/sam/build-python3.8",
+            TrainingImage = "${aws_ecr_repository.ecr_repo.repository_url}",
             TrainingInputMode = "File"
           },
-          RoleArn = aws_iam_role.sagemaker_exec_role.arn,
+          RoleArn = "${aws_iam_role.sagemaker_exec_role.arn}",
           InputDataConfig = [
             {
               ChannelName = "train",
@@ -287,4 +259,9 @@ resource "aws_sfn_state_machine" "sagemaker_training_job" {
       }
     }
   })
+}
+
+output "ecr_repository_url" {
+  value = aws_ecr_repository.ecr_repo.repository_url
+  description = "ECR URL for the Docker Image"
 }
