@@ -210,9 +210,21 @@ resource "aws_ecr_repository" "ecr_repo" {
 # Sagemaker Training job
 #################################################
 
+resource "aws_cloudwatch_log_group" "sfn_logs" {
+  name = "/aws/stepfunctions/sfn-sagemaker-training"
+  retention_in_days = 7  # You can adjust this retention period as needed
+}
+
 resource "aws_sfn_state_machine" "sagemaker_training_job" {
   name     = "step-machine-training"
   role_arn = aws_iam_role.sf_exec_role.arn
+  
+  logging_configuration {
+    log_destination        = "${aws_cloudwatch_log_group.sfn_logs.arn}:*"
+    include_execution_data = true
+    level                  = "ERROR"
+   }
+  
 
   definition = jsonencode({
     Comment = "A Step Function that creates a SageMaker training job",
@@ -222,7 +234,7 @@ resource "aws_sfn_state_machine" "sagemaker_training_job" {
         Type = "Task",
         Resource = "arn:aws:states:::sagemaker:createTrainingJob.sync",
         Parameters = {
-          TrainingJobName = "iris-training4",
+          TrainingJobName = "iris-training15",
           AlgorithmSpecification = {
             TrainingImage = "${aws_ecr_repository.ecr_repo.repository_url}",
             TrainingInputMode = "File"
@@ -254,6 +266,23 @@ resource "aws_sfn_state_machine" "sagemaker_training_job" {
           HyperParameters = {
             "test" = "test"
           }
+
+          # Debugging Config (Optional, but very useful)
+          DebugHookConfig = {
+            S3OutputPath = local.output_models_path,  # Output path to save debug logs
+            HookParameters = {
+              "save_interval" = "100"
+            }
+          },
+
+          # Profiler Config
+          ProfilerConfig = {
+            S3OutputPath = local.output_models_path,  # Output path to save profiling logs
+            ProfilingIntervalInMilliseconds = 500  # Adjust this interval as needed
+          },
+
+          # Enable Managed Spot Training (Optional)
+          EnableManagedSpotTraining = false
         },
         End = true
       }
