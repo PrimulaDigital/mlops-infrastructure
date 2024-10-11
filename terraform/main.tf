@@ -4,13 +4,13 @@ resource "aws_security_group" "sagemaker_sg" {
   description = "Security Group for SageMaker Domain and EFS"
   vpc_id      = "${var.vpc_id}" # Replace with your VPC ID
 
+  # Allow all ports
   ingress {
     from_port   = 2049
     to_port     = 2049
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -29,12 +29,12 @@ resource "aws_efs_file_system" "sagemaker_efs" {
   lifecycle_policy {
     transition_to_ia = "AFTER_30_DAYS"
   }
-
   tags = {
     Name = "sagemaker-efs"
   }
 }
 
+# Mount subnets to efs
 resource "aws_efs_mount_target" "efs_mount" {
   for_each = toset(var.subnets)
   file_system_id = aws_efs_file_system.sagemaker_efs.id
@@ -52,10 +52,21 @@ resource "aws_sagemaker_domain" "sagemaker_domain" {
   default_user_settings {
     execution_role = aws_iam_role.sagemaker_execution_role.arn
     security_groups = [aws_security_group.sagemaker_sg.id]
+    # Add repo to studio interface
+    jupyter_lab_app_settings {
+      code_repository {
+        repository_url = "https://github.com/PrimulaDigital/mlops-infrastructure.git"
+      }
+      # This would be where you could define a docker image
+      default_resource_spec {
+        instance_type = var.instance_type
+      }
+    }
   }
   tags = {
     Name = "${var.project_name}-domain"
   }
+
 }
 
 output "domain_efs_id" {
