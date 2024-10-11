@@ -1,5 +1,5 @@
-.conda
 __pycache__
+.conda
 .env
 venv
 .vscode
