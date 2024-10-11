@@ -21,3 +21,9 @@ variable "vpc_id" {
   description = "List of available subnets in the pre built VPC"
   default = ["subnet-073537da5ee37885a","subnet-07663b1b22ffaee50","subnet-00944e1eab3a4f1b4"]
  }
+
+ variable "instance_type" {
+  type = string
+  description = "Instance type for sagemaker jobs"
+  default = "ml.t3.medium"
+ }
