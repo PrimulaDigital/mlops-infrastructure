@@ -1,0 +1,6 @@
+boto3==1.35.16
+joblib==1.4.2
+pandas==2.2.2
+python-dotenv==1.0.1
+sagemaker==2.232.0
+scikit_learn==1.4.2
