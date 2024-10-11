@@ -41,21 +41,40 @@ resource "aws_efs_mount_target" "efs_mount" {
   subnet_id = each.key
   security_groups = [aws_security_group.sagemaker_sg.id]
 }
-
-
 # Create the SageMaker domain
 resource "aws_sagemaker_domain" "sagemaker_domain" {
   domain_name = "${var.project_name}-domain"
-  auth_mode = "IAM"
+  auth_mode = "SSO"
   vpc_id = "${var.vpc_id}"
   subnet_ids = "${var.subnets}"
   default_user_settings {
     execution_role = aws_iam_role.sagemaker_execution_role.arn
+  }
+  tags = {
+    Name = "${var.project_name}-domain"
+  }
+}
+
+# Create domain users
+# These have the same roles and security groups attached for now,
+# but differ in the repositories they have access to.
+resource "aws_sagemaker_user_profile" "scientist" {
+  for_each = toset(var.sso_architects)  # Use a set for unique entries
+  
+  domain_id = aws_sagemaker_domain.sagemaker_domain.id
+  user_profile_name = "${replace(replace(each.value, ".", "-"), "@", "-")}-scientist"  # Unique profile name per user
+  
+  # Use SSO user identifiers
+  single_sign_on_user_value = each.value
+  single_sign_on_user_identifier = each.value
+ 
+  user_settings {
+    execution_role = aws_iam_role.sagemaker_execution_role.arn
     security_groups = [aws_security_group.sagemaker_sg.id]
-    # Add repo to studio interface
+    # With lifecycles, you can trigger workflows on notebook instance creation here
     jupyter_lab_app_settings {
       code_repository {
-        repository_url = "https://github.com/PrimulaDigital/mlops-infrastructure.git"
+        repository_url = "${var.studio_url}"
       }
       # This would be where you could define a docker image
       default_resource_spec {
@@ -63,10 +82,32 @@ resource "aws_sagemaker_domain" "sagemaker_domain" {
       }
     }
   }
-  tags = {
-    Name = "${var.project_name}-domain"
-  }
+}
+resource "aws_sagemaker_user_profile" "architect" {
+  for_each = toset(var.sso_scientists)  # Use a set for unique entries
+  
+  domain_id = aws_sagemaker_domain.sagemaker_domain.id
+  user_profile_name = "${replace(replace(each.value, ".", "-"), "@", "-")}-architect"  # Unique profile name per user
+  
+  # Use SSO user identifiers
+  single_sign_on_user_value = each.value
+  single_sign_on_user_identifier = each.value
+ 
+  user_settings {
 
+    execution_role = aws_iam_role.sagemaker_execution_role.arn
+    security_groups = [aws_security_group.sagemaker_sg.id]
+    # With lifecycles, you can trigger workflows on notebook instance creation here
+    jupyter_lab_app_settings {
+      code_repository {
+        repository_url = "${var.architect_url}"
+      }
+      # This would be where you could define a docker image
+      default_resource_spec {
+        instance_type = var.instance_type
+      }
+    }
+  }
 }
 
 output "domain_efs_id" {
