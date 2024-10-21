@@ -44,11 +44,15 @@ resource "aws_efs_mount_target" "efs_mount" {
 # Create the SageMaker domain
 resource "aws_sagemaker_domain" "sagemaker_domain" {
   domain_name = "${var.project_name}-domain"
-  auth_mode = "SSO"
+  auth_mode = "IAM"
   vpc_id = "${var.vpc_id}"
   subnet_ids = "${var.subnets}"
   default_user_settings {
     execution_role = aws_iam_role.sagemaker_execution_role.arn
+  }
+  default_space_settings {
+    execution_role = aws_iam_role.sagemaker_execution_role.arn
+    security_groups = [aws_security_group.sagemaker_sg.id]
   }
   tags = {
     Name = "${var.project_name}-domain"
@@ -65,9 +69,6 @@ resource "aws_sagemaker_user_profile" "scientist" {
   user_profile_name = "${replace(replace(each.value, ".", "-"), "@", "-")}-scientist"  # Unique profile name per user
   
   # Use SSO user identifiers
-  single_sign_on_user_value = each.value
-  single_sign_on_user_identifier = each.value
- 
   user_settings {
     execution_role = aws_iam_role.sagemaker_execution_role.arn
     security_groups = [aws_security_group.sagemaker_sg.id]
@@ -76,10 +77,12 @@ resource "aws_sagemaker_user_profile" "scientist" {
       code_repository {
         repository_url = "${var.studio_url}"
       }
-      # This would be where you could define a docker image
       default_resource_spec {
         instance_type = var.instance_type
       }
+    }
+    kernel_gateway_app_settings {
+      # This would be where you could define a docker image
     }
   }
 }
@@ -88,13 +91,7 @@ resource "aws_sagemaker_user_profile" "architect" {
   
   domain_id = aws_sagemaker_domain.sagemaker_domain.id
   user_profile_name = "${replace(replace(each.value, ".", "-"), "@", "-")}-architect"  # Unique profile name per user
-  
-  # Use SSO user identifiers
-  single_sign_on_user_value = each.value
-  single_sign_on_user_identifier = each.value
- 
   user_settings {
-
     execution_role = aws_iam_role.sagemaker_execution_role.arn
     security_groups = [aws_security_group.sagemaker_sg.id]
     # With lifecycles, you can trigger workflows on notebook instance creation here
@@ -102,10 +99,12 @@ resource "aws_sagemaker_user_profile" "architect" {
       code_repository {
         repository_url = "${var.architect_url}"
       }
-      # This would be where you could define a docker image
       default_resource_spec {
         instance_type = var.instance_type
       }
+    }
+    kernel_gateway_app_settings {
+      # This would be where you could define a docker image
     }
   }
 }
